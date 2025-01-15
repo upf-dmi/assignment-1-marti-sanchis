@@ -1,6 +1,6 @@
 ---
-title: "my title"
-author: "Dummy Surname (dummy@mail.com)"
+title: "Hands-on 1"
+author: "Martí Sanchis Llovera (marti.sanchos01@estudiant.upf.edu)"
 date: "Last update: `r format(Sys.time(), '%d %B, %Y')`"      
 output:
   html_document:
@@ -18,18 +18,127 @@ Load the data from
 [here](https://raw.githubusercontent.com/jpinero/DMI_2021/main/datasets/heart_disease_dataset.csv), and the description is [here](https://raw.githubusercontent.com/jpinero/DMI_2021/main/datasets/heart_disease_description.txt). 
 The original dataset comes from [here](https://archive.ics.uci.edu/ml/datasets/Heart+Disease) and corresponds to the [processed cleveland data](https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data)
 
+## Load DATA
+```{r hd_load}
+library(pacman)
+p_load(readr, dplyr, DataExplorer, zCompositions, here, magrittr, ggplot2, tidyr, GGally)
+
+dt <- read_delim(file = here("data", "heart_disease_dataset.csv"), delim = " ") %>%
+  mutate(patient_id=NULL)
+
+```
+
 ## Perform an EDA on the dataset
+```{r hd_eda}
+dim(dt)
+head(dt)
+colnames(dt)
 
-```{r}
+summary(dt)
+unique(dt$ca)
+unique(dt$thal)
+unique(dt$num)
+
+### Numerical (Discrete/continuous)
+# age (numeric discrete): Age in years
+# trestbps (numeric): Resting blood pressure (mm Hg)
+# chol (numeric): Serum cholesterol (mg/dl)
+# thalach (numeric continuous): Maximum heart rate achieved
+# oldpeak (numeric continuous): ST depression induced by exercise relative to rest
+
+### Categorical
+# sex (factor): 1 = male, 0 = female
+# cp: (factor) Chest pain type (1: typical angina, 2: atypical angina, 3: non-anginal pain, 4: asymptomatic)
+# fbs (factor): Fasting blood sugar > 120 mg/dl (1 = true, 0 = false)
+# restecg (factor): Resting electrocardiographic results (0: normal, 1: ST-T wave abnormality, 2: left ventricular hypertrophy)
+# exang (factor): Exercise-induced angina (1 = yes, 0 = no)
+# slope (factor): Slope of the peak exercise ST segment (1: upsloping, 2: flat, 3: downsloping)
+# ca (factor): Number of major vessels colored by fluoroscopy
+# thal (factor): Thalassemia (3: normal, 6: fixed defect, 7: reversible defect)
+# num (factor): Diagnosis of heart disease (1: > 50% diameter narrowing, 0: < 50% narrowing)
+
+heart_disease <- dt %>%
+  mutate(
+    sex = factor(sex, levels = c("0", "1"), labels = c("female", "male")),
+    cp = factor(cp, levels = c("1", "2", "3", "4"), labels = c("typical","atypical","non-anginal","asymptomatic")),
+    trestbps = as.double(trestbps),
+    chol = as.double(chol),
+    fbs = factor(fbs, levels = c("0","1"),labels = c("<120mg/dl", ">120mg/dl")),
+    restecg = factor(restecg, levels = c("0","1","2"), labels = c("normal", "abnormal", "hypertrophy")),
+    thalach = as.double(thalach),
+    exang = factor(exang, levels = c("0","1"),labels = c("not", "yes")),
+    oldpeak = as.double(oldpeak),
+    slope = factor(slope, levels = c("1","2","3"), labels = c("upsloping", "flat", "downsloping")),
+    ca = factor(na_if(ca, "?"), levels = c("0","1","2","3")),
+    thal = factor(na_if(thal, "?"), levels = c("3","6","7"), labels = c("normal", "fixed", "reversible")),
+    num = factor(ifelse(num == "0", "negative", "positive"))
+  ) %>% 
+    rename(
+      chest_pain = cp,
+      rest_bps = trestbps,
+      cholesterol = chol,
+      fasting_bs = fbs,
+      rest_ecg = restecg,
+      max_hr = thalach,
+      exercice_angina = exang,
+      st_depression = oldpeak,
+      slope = slope,
+      vessels_count = ca,
+      thalassemia = thal,
+      hd_diagnosis = num
+  )
+summary(heart_disease)
+
+numerical_long <- heart_disease %>% 
+  pivot_longer(cols = where(is.numeric), names_to = "Variables", values_to = "Value")
+
+categorical_long <- heart_disease %>% 
+  pivot_longer(cols = where(is.factor), names_to = "Variables", values_to = "Value")
+
+numerical_long %>% ggplot(aes(x = Value)) + 
+  geom_histogram(bins=15, fill = "lightseagreen", color = "black", alpha = 0.7) + 
+  facet_wrap(~ Variables, scales = "free") + 
+  theme_minimal() +
+  labs(title = "Histograms for Numeric Variables",
+       x = "Value",
+       y = "Frequency")
+
+numerical_long %>% ggplot(aes(sample = Value)) +
+  geom_qq() +
+  geom_qq_line(color = "red") +
+  facet_wrap(~ Variables, scales = "free") + 
+  theme_minimal() +
+  labs(title = "QQ Plots for Numeric Variables",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles")
 
 
+categorical_long %>% ggplot(aes(x = Value, fill = "firebrick")) +
+  geom_bar() + 
+  facet_wrap(~ Variables, scales = "free") +  
+  theme_minimal() +
+  theme(legend.position = "none") + 
+  labs(title = "Barplots for Categorical Variables",
+       x = "Level",
+       y = "Frequency")
 
+heart_disease %>% dplyr::select(c(age,sex,chest_pain,vessels_count,thalassemia,hd_diagnosis)) %>% 
+  zPatterns(label = NA, bar.labels = TRUE)
+plot_missing(heart_disease,
+             title = "Missing Data",
+             ggtheme = theme_light())
+
+p_ <- GGally::print_if_interactive
+ggpairs()
+
+heart_disease %>% dplyr::select(where(is.numeric)) %>% ggpairs()
+                         
 ```
 
 
 ## Create visualizations in order to show which variables seem to be more associated with heart disease
 
-```{r}
+```{r hd_plots}
 
 ```
 
