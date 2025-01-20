@@ -29,15 +29,21 @@ dt <- read_delim(file = here("data", "heart_disease_dataset.csv"), delim = " ") 
 ```
 
 ## Perform an EDA on the dataset
-```{r hd_eda}
+
+After loading the dataset with read_delim(), we can see that the dimensions of this tibble are 303 observations with 14 attributes, which are named as specified in the description file. However, there are two variables that don't match the variable type specified in the descriptions: as we see in the header and also in the summary, variables ca and thal are detected as characters but should be categorical variables, and also the rest of categorical variables are detected as floats. Using unique() in these two first commented variables, we see that the reason they are detected as characters is because missing data are coded as a question mark "?". There are no duplicated rows in this dataset.
+
+To correctly parse the variables we use the mutate() function, setting all categorical variables as so (also labeling each factor as described in the description file), and also changing age variable to integer. The categorical variable heart disease diagnosis shows 4 different levels, while in the description the diagnosis can only be positive or negative, so we have changed the levels to positive and negative only. Moreover we rename variables so they have more meaningful names. 
+
+```{r hd_eda_tibble}
 dim(dt)
-head(dt)
 colnames(dt)
 
+head(dt)
 summary(dt)
 unique(dt$ca)
 unique(dt$thal)
 unique(dt$num)
+dt[duplicated(dt),]
 
 ### Numerical (Discrete/continuous)
 # age (numeric discrete): Age in years
@@ -74,21 +80,41 @@ heart_disease <- dt %>%
     num = factor(ifelse(num == "0", "negative", "positive"))
   ) %>% 
     rename(
-      chest_pain = cp,
-      rest_bps = trestbps,
-      cholesterol = chol,
-      fasting_bs = fbs,
-      rest_ecg = restecg,
-      max_hr = thalach,
-      exercice_angina = exang,
-      st_depression = oldpeak,
-      slope = slope,
-      vessels_count = ca,
-      thalassemia = thal,
-      hd_diagnosis = num
+      Gender=sex,
+      Age=age,
+      ChestPain = cp,
+      RestingBloodPressure = trestbps,
+      Cholesterol = chol,
+      FastingBloodSugar = fbs,
+      RestingECG = restecg,
+      MaxHeartRate = thalach,
+      ExerciseInducedAngina = exang,
+      STDepression = oldpeak,
+      Slope=slope,
+      MajorVessels = ca,
+      Thalassemia = thal,
+      HeartDiseaseDiagnosis = num
   )
 summary(heart_disease)
+head(heart_disease)
+```
 
+We use the function zPatterns from the package zCompositions to plot the different patterns of missingness in this dataset. We can observe that very few observations have missing data, only in the two variables mentioned above: vessels_count and thalassemia. Also we can see that the missingness in the two variables are independent from each other, so most probably these are missing completely at random. Taking into account that only a 2% of observations contain missing data, we could just simply remove these records from the dataset.
+
+```{r hd_eda_missing_data}
+
+heart_disease %>% dplyr::select(c(Age,Gender,ChestPain,MajorVessels,Thalassemia,HeartDiseaseDiagnosis)) %>% 
+  zPatterns(label = NA, bar.labels = TRUE)
+# plot_missing(heart_disease,
+#              title = "Missing Data",
+#              ggtheme = theme_light())
+```
+Afterwards, we create two different tibbles containing only the numerical variables or the categorical variables. We use the pivot_longer function to reorganize the tibble in a way that the information of attribute is no longer a set of different columns but a single column. The levels of this column are the variable names. This allows us to make univariate plots with all variables within a single ggplo2 call:
+
+- First we plot the histograms from the numerical variables with the density line. Also we use the qq-plots to visualize if they follow a normal-distribution or not. Mainly, variables age, choloesterol, max_hr and rest_bsp seem to follow pretty well a normal distribution. However, both cholesterol and rest_bps appear to be slightly positively skewed with a heavier right tail and also present some outliers as seen in the boxplots below. On the other hand, max_hr shows a slight negative skewness with a heavier left tail presenting only one outlier. The distribution of variable st_depression is heavily zero-inflated and also present some outliers in its right tail, deviating the most from a normal distribution.
+- Secondly we plot barplots for the categorical variables. We can see that many variables' levels are unbalanced. For example, fasting_bs, rest_ecg, slope, chest_pain, thalassemia and vessel count
+
+```{r hd_eda_univariate}
 numerical_long <- heart_disease %>% 
   pivot_longer(cols = where(is.numeric), names_to = "Variables", values_to = "Value")
 
@@ -96,7 +122,17 @@ categorical_long <- heart_disease %>%
   pivot_longer(cols = where(is.factor), names_to = "Variables", values_to = "Value")
 
 numerical_long %>% ggplot(aes(x = Value)) + 
-  geom_histogram(bins=15, fill = "lightseagreen", color = "black", alpha = 0.7) + 
+  geom_histogram(aes(y = after_stat(density)), bins=15, fill = "lightseagreen", color = "black") + 
+  geom_density(bw=15) +
+  facet_wrap(~ Variables, scales = "free") + 
+  theme_minimal() +
+  labs(title = "Histograms for Numeric Variables",
+       x = "Value",
+       y = "Frequency")
+
+numerical_long %>% ggplot(aes(y = Value)) + 
+  geom_boxplot() +
+  geom_jitter(aes(x = 0), size=0.8) +
   facet_wrap(~ Variables, scales = "free") + 
   theme_minimal() +
   labs(title = "Histograms for Numeric Variables",
@@ -113,8 +149,8 @@ numerical_long %>% ggplot(aes(sample = Value)) +
        y = "Sample Quantiles")
 
 
-categorical_long %>% ggplot(aes(x = Value, fill = "firebrick")) +
-  geom_bar() + 
+categorical_long %>% ggplot(aes(x = Value)) +
+  geom_bar(fill = "firebrick") + 
   facet_wrap(~ Variables, scales = "free") +  
   theme_minimal() +
   theme(legend.position = "none") + 
@@ -122,19 +158,18 @@ categorical_long %>% ggplot(aes(x = Value, fill = "firebrick")) +
        x = "Level",
        y = "Frequency")
 
-heart_disease %>% dplyr::select(c(age,sex,chest_pain,vessels_count,thalassemia,hd_diagnosis)) %>% 
-  zPatterns(label = NA, bar.labels = TRUE)
-plot_missing(heart_disease,
-             title = "Missing Data",
-             ggtheme = theme_light())
-
-p_ <- GGally::print_if_interactive
-ggpairs()
-
-heart_disease %>% dplyr::select(where(is.numeric)) %>% ggpairs()
-                         
 ```
+The scatter plots showed below, along with the correlation coefficients, show really poor correlation between numerical variables. The highest correlations are found in Max Heart Rate decreasing with Age, ST Depression decreasing with Max Heart Rate and Resting Blood Preassure increasing with Age.
 
+```{r hd_eda_bivariate}
+ggpairs(heart_disease,
+        columns = c("Age", "RestingBloodPressure", "Cholesterol", "MaxHeartRate", "STDepression"),
+        aes(color = HeartDiseaseDiagnosis)) +  # Aquí pasas el mapeo de color correctamente
+  theme_minimal() +
+  labs(title = "Pair Plot of Predictive Variables by Heart Disease Diagnosis")
+
+
+```
 
 ## Create visualizations in order to show which variables seem to be more associated with heart disease
 
