@@ -164,10 +164,10 @@ The scatter plots showed below, along with the correlation coefficients, show re
 ```{r hd_eda_bivariate}
 ggpairs(heart_disease,
         columns = c("Age", "RestingBloodPressure", "Cholesterol", "MaxHeartRate", "STDepression"),
-        aes(color = HeartDiseaseDiagnosis)) +  # Aquí pasas el mapeo de color correctamente
+        aes(color = HeartDiseaseDiagnosis),
+        progress = FALSE) +  # Aquí pasas el mapeo de color correctamente
   theme_minimal() +
-  labs(title = "Pair Plot of Predictive Variables by Heart Disease Diagnosis")
-
+  labs(title = "Pair Plot of Numerical Variables by Heart Disease Diagnosis")
 
 ```
 
