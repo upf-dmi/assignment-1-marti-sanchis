@@ -110,7 +110,6 @@ We apply the function mice from package "mice" to input the missing data in the 
 heart_disease %>% 
   dplyr::select(c(Age,Gender,ChestPain,MajorVessels,Thalassemia,HeartDiseaseDiagnosis)) %>% 
   zPatterns(label = NA, bar.labels = TRUE)
-initial_na <- summary(heart_disease %>% dplyr::select(MajorVessels,Thalassemia))
 # plot_missing(heart_disease,
 #              title = "Missing Data",
 #              ggtheme = theme_light())
@@ -165,10 +164,33 @@ numerical_long %>% ggplot(aes(y = Value)) +
   labs(title = "Histograms for Numeric Variables",
        x = "Value",
        y = "Frequency")
-is.outlier <- heart_disease_imputed %>% 
-  rstatix::mahalanobis_distance() %>%
-  dplyr::select(is.outlier)
 
+heart_disease_imputed %<>% add_column(rstatix::mahalanobis_distance(heart_disease_imputed) %>%
+                                        dplyr::select(is.outlier)) %>% 
+  mutate(id=row_number())
+  
+numerical_long <- heart_disease_imputed %>% 
+  pivot_longer(cols = where(is.numeric)& !c("id"), 
+               names_to = "Variables", 
+               values_to = "Value") %>% 
+  dplyr::select(Variables, Value, is.outlier, id)
+
+numerical_long %>% ggplot(aes(y = Value)) + 
+  geom_boxplot() +
+  geom_jitter(aes(x = 0, colour = is.outlier), size=0.8) +
+  geom_text(
+    data = numerical_long %>% filter(is.outlier == TRUE),
+    aes(x = 0, label = id), 
+    hjust = -0.2, 
+    size = 3.5, 
+    color = "red" 
+  ) +
+  facet_wrap(~ Variables, scales = "free") + 
+  theme_minimal() +
+  labs(title = "Histograms for Numeric Variables",
+       x = "Value",
+       y = "Frequency") +
+  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"))
 
 ```
 
