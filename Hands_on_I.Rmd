@@ -122,7 +122,7 @@ summary(heart_disease_imputed %>% dplyr::select(MajorVessels,Thalassemia))
 ```
 Afterwards, we create two different tibbles containing only the numerical variables or the categorical variables. We use the pivot_longer function to reorganize the tibble in a way that the information of attribute is no longer a set of different columns but a single column. The levels of this column are the variable names. The second column contains the corresponding values for all levels. This allows us to make univariate plots with all variables within a single ggplo2 call:
 
-- First we plot the histograms from the numerical variables with the density line. Also we use the qq-plots to visualize if they follow a normal-distribution or not. Mainly, variables age, choloesterol, max_hr and rest_bsp seem that could follow a normal distribution. However, both cholesterol and rest_bps appear to be slightly positively skewed with a heavier right tail and may present some outliers. On the other hand, max_hr shows a slight negative skewness with a heavier left tail. The distribution of variable st_depression is heavily zero-inflated and also probably present some outliers in its right tail, deviating the most from a normal distribution.
+- First we plot the histograms from the numerical variables with the density line. Also we use the qq-plots to visualize if they follow a normal-distribution or not. Mainly, variables age, choloesterol, max_hr and rest_bsp seem that could follow a normal distribution from the QQ-plots, but the tails don't fit really well. Both cholesterol and rest_bps appear to be slightly positively skewed with a heavier right tail and may present some outliers. On the other hand, max_hr shows a slight negative skewness with a heavier left tail. The distribution of variable st_depression is heavily zero-inflated and also probably present some outliers in its right tail, deviating the most from a normal distribution.
 When checking the normality of the numerical variables with the shapiro.wilk test, the assumption of normality is rejected for all of them. We try to use the log values and still normality is rejected for most variables, except from cholesterol.
 
 ```{r hd_eda_univariate>_numerical}
@@ -157,9 +157,9 @@ numerical_long %>%
     p_value = shapiro.test(log(Value))$p.value)
 ```
 
-In the univariate boxplots we can see that some variables like Cholesterol RestingBloodPressure and STDepression have in fact some outliers. However, in order to adress them, the mahalanobis_distance function from package rstatix. This is a multivariate algorithm that uses the mahalanobis distance to flag outliers, also taking into account the covariance matrix of the set of variables. In this way, some of the univariate outliers are not flagged as so. 
+In the univariate boxplots we can see that some variables like Cholesterol RestingBloodPressure and STDepression have in fact some outliers. In order to adress them, the mahalanobis_distance function from package rstatix is used. This is a multivariate algorithm that uses the mahalanobis distance to flag outliers, also taking into account the covariance matrix of the set of variables. In this way, some of the univariate outliers are not flagged as so. 
 
-Only observations 153, 127 and 92 are identified as outliers. Looking at the boxplots, is very clear that each of these observations stands out as an outlier (above upper limit) because of its value for single variable: 153 because of cholesterol value, 127 because of RestingBloodPressure value and 92 because of STDepression value. Consequently, we decide to change a single value in each outlier observation for the corresponding variable using the upper whisker limit of the boxplot, computed as Q3 + 1.5 InterQuartileRange. After that, the mahalanobis_distance function doesn't detect more outliers.
+Only observations 153, 127 and 92 are identified as outliers. Looking at the boxplots, is very clear that each of these observations stands out as an outlier (above upper limit) because of its value for a single variable: 153 because of cholesterol value, 127 because of RestingBloodPressure value and 92 because of STDepression value. Consequently, we decide to change a single value in the corresponding variable for each outlier observation using the upper whisker limit of the boxplot, computed as Q3 + 1.5*IQR. After that, the mahalanobis_distance function doesn't detect more outliers.
 
 ```{r hd_outliers}
 numerical_long %>% ggplot(aes(y = Value)) + 
@@ -245,8 +245,11 @@ ggpairs(heart_disease_imputed,
   theme_minimal() +
   labs(title = "Pair Plot of Numerical Variables by Heart Disease Diagnosis")
 
+```
 
+## Create visualizations in order to show which variables seem to be more associated with heart disease
 
+```{r hd_plots}
 ## Chi-squared test for categorical variables
 plot_chisq_fisher_barplot <- function(data, var1, var2) {
   contingency_table <- table(data[[var1]], data[[var2]])
@@ -261,7 +264,7 @@ plot_chisq_fisher_barplot <- function(data, var1, var2) {
     labs(title = paste("Barplot of", var1, "by", var2),
          x = var1,
          y = "Frequency") +
-    scale_fill_manual(values = c("#1f77b4", "#ff7f0e")) +  
+    scale_fill_manual(values = c("#1f77b4", "#ff7f0e","darkred","lightgreen")) +  
     theme_minimal() +
     theme(plot.title = element_text(size = 16))  # Ajusta el tamaño del título
   p + annotate("text", x = 1.5, y = max(table(data[[var2]])) * 1.05, 
@@ -273,11 +276,13 @@ plot_chisq_fisher_barplot <- function(data, var1, var2) {
 }
 
 plot_chisq_fisher_barplot(heart_disease_imputed, "Gender", "HeartDiseaseDiagnosis")
-```
+plot_chisq_fisher_barplot(heart_disease_imputed, "ChestPain", "HeartDiseaseDiagnosis")
+plot_chisq_fisher_barplot(heart_disease_imputed, "ExerciseInducedAngina", "HeartDiseaseDiagnosis")
+plot_chisq_fisher_barplot(heart_disease_imputed, "Slope", "HeartDiseaseDiagnosis")
+plot_chisq_fisher_barplot(heart_disease_imputed, "MajorVessels", "HeartDiseaseDiagnosis")
+plot_chisq_fisher_barplot(heart_disease_imputed, "Thalassemia", "HeartDiseaseDiagnosis")
 
-## Create visualizations in order to show which variables seem to be more associated with heart disease
 
-```{r hd_plots}
 
 ```
 
