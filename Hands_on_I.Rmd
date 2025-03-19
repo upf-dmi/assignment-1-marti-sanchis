@@ -1,6 +1,8 @@
 ---
 title: "Hands-on 1"
-author: "Martí Sanchis Llovera (marti.sanchos01@estudiant.upf.edu)"
+author: 
+    - "Alexios Giannoulas (alexios.giannoulas01@estudiant.upf.edu)"
+    - "Martí Sanchis (marti.sanchis01@estudiant.upf.edu)"
 date: 'Last update: `r format(Sys.time(), "%d %B, %Y")`'
 output:
   html_document:
@@ -404,7 +406,182 @@ Using the supplementary material from the [Difference in mortality rates in hosp
 ## Reproduce Figure 1 from the publication
 
 ```{r}
+# setwd("/home/alexiosgiannoulas/DMI/Practical_1/assignment-1-alexiosvg")
+library(readxl)
+library(here)
+library(dplyr)
+library(ggpubr)
+library(RColorBrewer)
+library(tibble)
+library(ggplot2)
 
+#Loading the table with the clinical characteristics of the patients, skipping the first line
+data <-read_excel(here("data", "Table 1.XLSX"), skip = 1)
+#Plotting the distribution of age among patients
+
+Plot1A <- ggplot(data, aes(x = Age)) +
+  geom_histogram(binwidth = 10, fill = "azure2", color = "black") +
+  labs(title = "Age", x = "Age (years)", y = "Frequency (n)") +
+  scale_x_continuous(limits = c(20, 100), breaks = seq(20, 100, by = 20)) +
+  scale_y_continuous(limits = c(0, 60), breaks = seq(0, 50, by = 10)) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),  
+    axis.line = element_line(color = "black"),  
+    axis.ticks = element_line(color = "black"),  
+    plot.title = element_text(hjust = 0.5, face = "bold"),  
+    axis.text = element_text(size = 12),  
+    axis.title = element_text(size = 12)  
+  )
+Plot1A
+```
+
+```{r}
+#Making a custom table  for PlotB
+Plot1B <- tribble(
+  ~"Clinical\nclassification", ~"NIV", ~"AMV", ~"ARDS",
+  "G1", "-", "-", "-",
+  "G2", "-/+", "+/-", "-",
+  "G3", "+", "-", "+",
+  "G4", "-/+", "+", "+"
+)
+
+#Making a custom theme for the table
+custom_theme <- ttheme(
+  colnames.style = list(
+    face = "bold", size = 14, color = "black", fill = "grey70", halign = "center"
+  ),
+  tbody.style = list(
+    size = 12, color = "black", fill = c("white", "grey90"), halign = "center"
+  )
+)
+
+# Generating the table plot
+table_plot1B <- ggtexttable(Plot1B, 
+                          rows = NULL, 
+                          theme = custom_theme)+ 
+  ggtitle("Definition of the clinical classification") + 
+  theme(
+    plot.title = element_text(
+      hjust = 0.5, 
+      size = 12,     # Adjust size to match your script (increase for larger text)
+      face = "bold"   # Make it bold
+    )
+  )
+table_plot1B
+```
+
+Some data cleaning has to be done before making the rest of the figures 
+```{r}
+# Deleting duplicated rows
+data <- data %>% distinct()
+#Filter the data to only keep the rows where the data is correctly entered 
+#To avoid spaces we use trimws
+data <- data %>%
+  filter(
+    trimws(`ARDS Diagnosis`) %in% c("Yes", "No"),
+    trimws(`Use of NIV`) %in% c("Yes", "No"),
+    trimws(`Use of AMV`) %in% c("Yes", "No"),
+    trimws(`Admission to ICU`) %in% c("Yes", "No"),
+    trimws(`Death`) %in% c("Yes", "No"),
+    trimws(`Gender`) %in% c("F", "M"),
+    !is.na(as.numeric(`Syntoms onset`))  # Ensure Symptoms onset is numeric
+  )
+
+
+# Filter data based on classification criteria
+data <- data %>%
+  filter(
+    (`ARDS Diagnosis` == "No" & `Use of NIV` == "No" & `Use of AMV` == "No") |  # G1
+    (`ARDS Diagnosis` == "No") |  # G2 allows any NIV and AMV when ARDS = No
+    (`ARDS Diagnosis` == "Yes" & `Use of NIV` == "Yes" & `Use of AMV` == "No") |  # G3
+    (`ARDS Diagnosis` == "Yes" & `Use of AMV` == "Yes")  # G4 allows any NIV
+  )
+#Introducing the classifications G1-4 to the data table
+data <- data %>%
+  mutate(
+    Clinical_Classification = case_when(
+      `ARDS Diagnosis` == "No" & `Use of NIV` == "No" & `Use of AMV` == "No" ~ "G1",
+      `ARDS Diagnosis` == "No" ~ "G2",  # G2 allows any NIV and AMV when ARDS = No
+      `ARDS Diagnosis` == "Yes" & `Use of NIV` == "Yes" & `Use of AMV` == "No" ~ "G3",
+      `ARDS Diagnosis` == "Yes" & `Use of AMV` == "Yes" ~ "G4"  # G4 allows any NIV
+    )
+  )
+
+
+# Count the number of observations per Clinical Classification group
+classification_counts <- data %>%
+  count(Clinical_Classification)
+
+# Define custom colors (similar to your image)
+custom_colors <- c("G1" = "#76C1B2", "G2" = "#F7F79A", "G3" = "#BDB0DD", "G4" = "#F47C7C")
+
+# Create the bar plot
+Plot1C <- ggplot(classification_counts, aes(x = Clinical_Classification, y = n, fill = Clinical_Classification)) +
+  geom_bar(stat = "identity", color = "black") +  
+  geom_text(aes(label = n), vjust = -0.5, size = 5) +  
+  scale_fill_manual(values = custom_colors) +  
+  labs(
+    title = "Clinical classification",
+    x = "Clinical classification",
+    y = "Frequency (n)"
+  ) +
+  ylim(0, max(classification_counts$n) * 1.1) +  # Extend y-axis
+  theme_minimal() +  
+  theme(
+    text = element_text(size = 12),  
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),  
+    legend.position = "none",
+    panel.grid = element_blank(),  # Remove grid
+    axis.line = element_line(color = "black")  # Add axis lines for clarity
+  )
+Plot1C
+```
+
+```{r}
+
+# Count the number of occurrences of each category in the Death column
+death_counts <- data %>%
+  count(Death)
+
+# Define custom colors
+custom_colors2 <- c("No" = "#76C1B2", "Yes" = "#F7F79A")
+
+# Create the bar plot
+Plot1D <- ggplot(death_counts, aes(x = Death, y = n, fill = Death)) +
+  geom_bar(stat = "identity", color = "black") +  
+  geom_text(aes(label = n), vjust = -0.5, size = 5) +  
+  scale_fill_manual(values = custom_colors2) +  
+  labs(
+    title = "Vital status",
+    x = "Death",
+    y = "Frequency (n)"
+  ) +
+  ylim(0, max(death_counts$n) * 1.1) +  # Extend y-axis
+  theme_minimal() +  
+  theme(
+    text = element_text(size = 12),  
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),  
+    legend.position = "none",
+    panel.grid = element_blank(),  # Remove grid
+    axis.line = element_line(color = "black")  # Add axis lines
+  )
+Plot1D
+```
+Combining the plots Plot1A, Table_plot1B, Plot1C, Plot1D
+```{r}
+
+final_plot <- ggarrange(
+  Plot1A, table_plot1B, Plot1C, Plot1D,
+  ncol = 2, nrow = 2,
+  labels = c("A", "B", "C", "D"),  # Adds A, B, C, D labels
+  font.label = list(size = 14, face = "bold"),
+  widths = c(1, 1),
+  heights = c(1, 1),
+  align = "hv"
+)
+final_plot
+#ggsave("final_plot1.png", plot = final_plot, width = 8, height = 6, dpi = 300, bg = "white")
 ```
 
 
@@ -413,14 +590,156 @@ but instead of representing the clusters in the annotation, represent the groups
 
 ```{r}
 
+library(tidyverse)
+library(readxl)
+library(pheatmap)
+library(RColorBrewer)
+library(cluster)
+library(grid)
+library(ComplexHeatmap)
+library(circlize)
+library(ggplot2)
+#Loading the data and doing the necessary adjustments so that the excel file is  read correctly as a dataframe
+data2 <-read_excel(here("data", "Table 2.XLSX"), skip = 1)
+names(data2)[1] <- "ID"
+data2 <- data2 %>%
+  fill(ID, .direction = "down")
+#Joining Clinical_Classification, Age, and Death from 'data' to 'data2' in one step and filling down duplicated values
+data2 <- data2 %>%
+  left_join(data %>% select(ID, Clinical_Classification, Gender, Death), by = "ID") %>%
+  fill(Clinical_Classification, Gender, Death, .direction = "down")
+
+#Making a dataset that contains the necessary data for clustering
+data2_clustering <- data2 %>%
+  select(1, 3:14, 28:30)
+#Deleting rows with NI values
+data2_clustering <- data2_clustering %>%
+  filter(if_all(everything(), ~ . != "NI"))
+#Checking the type of data
+str(data2_clustering)
+#Because the data for the cytokines is not numeric we have to convert it to numeric.
+data2_clustering <- data2_clustering %>%
+  mutate(across(!c(ID, Clinical_Classification, Death, Gender), as.numeric))
+#Getting error that NAs were introduced. This means that non-numeric data was present in the columns.
+data2_clustering %>% summarise(across(everything(), ~ sum(is.na(.)), .names = "NA_count_{.col}"))
+#27 NA were detected in IL-6 column. After checking at the original dataset, these data are ND values which means they were not detected.
+#Since in the study they used all patients for the clustering, we impute these NAs with 0, since it was used for other patients.
+data2_clustering <- data2_clustering %>%
+  mutate(`IL-6` = ifelse(is.na(`IL-6`), 0, `IL-6`))
+#Checking if the NAs were removed
+data2_clustering %>% summarise(across(everything(), ~ sum(is.na(.)), .names = "NA_count_{.col}")) #They were removed
+#Checking how many unique ID we have
+data2_clustering %>% summarise(n_distinct(ID))
+#We have 194 unique IDs, which is the same number as in the article
+#Calculating the mean for each cytokine for every patients accross days of sampling
+data2_clustering <- data2_clustering %>%
+  group_by(ID) %>%
+  summarise(
+    across(where(is.numeric), mean, na.rm = TRUE),  # Calculate the mean of numeric columns
+    Clinical_Classification = first(Clinical_Classification),# Keep the first value of Clinical_Classification
+    Death = first(Death),# Keep the first value of Death
+    Gender = first(Gender) #Keep the first value of Gender
+  )
+data2_clustering %>% summarise(n_distinct(ID)) # We still have 194 IDs
+
+# Begin the clustering
+# Converting tibble to data frame
+clustering_data <- as.data.frame(data2_clustering)
+rownames(clustering_data) <- clustering_data$ID
+clustering_data$ID <- NULL
+# Ensure Clinical_Classification is a factor to maintain ordering
+data2_clustering$Clinical_Classification <- factor(data2_clustering$Clinical_Classification, 
+                                                   levels = c("G1", "G2", "G3", "G4"))
+# Sex and Death bring problems to the later analysis so we store them in a different data frame
+Sex_Death <- clustering_data[,c(14,15)]
+clustering_data <- clustering_data[,1:13]
+# Create the heatmap data matrix (transposed)
+heatmap_data <- t(clustering_data[, -ncol(clustering_data)]) 
+# Calculating relative expression in percentage
+relative_expression <- apply(heatmap_data, 2, function(x) (x / sum(x)) * 100)
+
+# Preparing the annotations for the heatmap using colorblind friendly colors for G1-G4
+annotation_data <- data.frame(Group = data2_clustering$Clinical_Classification)
+group_annotation <- HeatmapAnnotation(df = annotation_data, 
+                                      show_annotation_name = FALSE,
+                                      col = list(Group = c("G1" = "#E69F00", "G2" = "#56B4E9", 
+                                                           "G3" = "#009E73", "G4" = "#CC79A7")))
+
+# Setting color scale for heatmap
+heatmap_colors <- c("#FFF5EB", "#FB7D28", "#8C2D09")
+
+# Creating the heatmap
+heatmap_object <- Heatmap(relative_expression,
+                          top_annotation = group_annotation,
+                          col = colorRamp2(c(0, 50, 100), heatmap_colors),
+                          column_title = "Patients",
+                          column_title_side = "bottom",
+                          show_column_names = FALSE,
+                          show_heatmap_legend = FALSE)
+
+# Adding a legend for relative expression values
+color_legend <- Legend(
+  title = "Relative expression",
+  at = c(0, 50, 100),
+  labels = c("0", "50%", "100%"),
+  legend_gp = gpar(fill = heatmap_colors)
+)
+
+legend_pack <- packLegend(color_legend, direction = "vertical")
+
+# Drawing the final heatmap with legend
+final_heatmap_plot <- draw(heatmap_object, annotation_legend_list = legend_pack, annotation_legend_side = "left")
+
+
+#ggsave("final_heatmap.png", plot = grid.grabExpr(draw(heatmap_object, 
+    #annotation_legend_list = legend_pack, annotation_legend_side = "left")),
+    #width = 10, height = 8, dpi = 150)
+
 ```
 
 ## Improve figure 2 of the publication
-Add a second annotation with information of deathm and a third one with information of gender
+Add a second annotation with information of death and a third one with information of gender
 
 ```{r}
+annotation_data_final <- data.frame(
+  Group = data2_clustering$Clinical_Classification,
+  Death = factor(Sex_Death$Death),
+  Gender = factor(Sex_Death$Gender)
+)
 
-```
+# Check and set factor levels if necessary
+levels(annotation_data_final$Death) <- c("No", "Yes")
+levels(annotation_data_final$Gender) <- c("Male", "Female")
+
+group_annotation <- HeatmapAnnotation(
+  df = annotation_data_final,
+  show_annotation_name = TRUE,
+  col = list(
+    Group = c("G1" = "#E69F00", "G2" = "#56B4E9", "G3" = "#009E73", "G4" = "#CC79A7"),
+    Death = c("Yes" = "#0072B2", "No" = "#D55E00"),
+    Gender = c("Male" = "#0072B2", "Female" = "#CC79A7")
+  ),
+  annotation_name_gp = gpar(fontsize = 10),
+  annotation_height = unit(c(0.8, 0.4, 0.4), "cm")
+)
+
+heatmap_object_final <- Heatmap(
+  relative_expression,
+  top_annotation = group_annotation,
+  col = colorRamp2(c(0, 50, 100), heatmap_colors),
+  column_title = "Patients",
+  column_title_side = "bottom",
+  show_column_names = FALSE,
+  show_heatmap_legend = FALSE
+)
+
+final_heatmap_plot <- draw(
+  heatmap_object_final,  # Changed from heatmap_object to heatmap_object_final
+  annotation_legend_list = legend_pack,
+  annotation_legend_side = "left"
+)
+
+``` 
 
 
 # session info {.unnumbered}
